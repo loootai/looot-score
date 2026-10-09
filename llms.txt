@@ -1,0 +1,26 @@
+# looot-score
+
+> Open-source lead and ICP fit scoring on looot. Input: a CSV of leads (email, or name plus domain). Output: a score 0 to 100 and a grade A to D per lead, with the criteria, the fact found and the provider behind each.
+
+## Run it
+
+- Needs Node 20+, and `LOOOT_TOKEN` for real runs. Install: `npm install --ignore-scripts`.
+- Free preview of cost: `npm run score -- leads.csv --dry-run` (no run, no charge).
+- Real run: `npm run score -- leads.csv --max-spend 5`. Refuses when the quote is above the cap. Writes out/score-<run>.json, .csv, .md.
+- Sample data, no token: `npm run score -- --demo` or `npm run demo` for the web UI.
+- Exit codes: 0 done, 1 error, 2 refused (over cap or no token).
+
+## Files
+
+- config/icp.json: the ICP. Points, ideal ranges, target industries, titles, countries, technologies, grade cut-offs, hard rules. Edit this to change scoring. Changing it re-scores stored leads without a call (web UI).
+- src/engine/providers.ts: the four looot endpoints, their inputs and parsers.
+- src/engine/score.ts: the scoring rules.
+- skills/looot-score/SKILL.md: Claude Code skill.
+
+## Rules for agents
+
+- Always run --dry-run first and show the quote to the user before a real run.
+- Never raise --max-spend without the user's word.
+- A "pending" call is not a failure. Re-run in the same month to collect it without a second charge.
+- No paid run has been verified against real provider responses yet. Say so when reporting results.
+- A fact marked unknown means no provider returned it. Do not fill it in.

@@ -1,0 +1,15 @@
+{
+  "name": "Mid-market B2B software, sales and marketing buyers",
+  "freshnessWindow": "month",
+  "concurrency": 4,
+  "grades": { "A": 75, "B": 55, "C": 35 },
+  "components": {
+    "employees": { "points": 25, "ideal": [50, 500], "acceptable": [20, 2000] },
+    "industry": { "points": 20, "include": ["software", "saas", "internet", "information technology"], "exclude": [] },
+    "geography": { "points": 10, "include": ["US", "CA", "GB", "DE", "FR", "NL"] },
+    "title": { "points": 15, "include": ["sales", "revenue", "marketing", "growth", "demand", "operations", "founder", "ceo"], "exclude": ["intern", "student"] },
+    "seniority": { "points": 20, "levels": { "c_suite": 1, "vp": 1, "head": 0.9, "director": 0.9, "manager": 0.6, "senior": 0.3, "entry": 0 } },
+    "tech": { "points": 10, "include": ["HubSpot", "Salesforce", "Outreach", "Segment"], "exclude": [], "minMatches": 1 }
+  },
+  "disqualify": { "industries": ["government"], "titles": ["intern", "student"], "personalEmailDomains": true }
+}

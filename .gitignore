@@ -1,0 +1,15 @@
+.DS_Store
+.env
+.env.*.local
+.env.local
+.looot-intent/
+.looot-score/
+.next/
+.test-out/
+.vercel
+.vitest/
+*.tsbuildinfo
+coverage/
+node_modules/
+npm-debug.log*
+out/

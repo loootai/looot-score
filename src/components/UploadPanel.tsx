@@ -63,7 +63,7 @@ export function UploadPanel({ initialCsv, demo, canRun }: { initialCsv: string; 
   }
 
   return (
-    <section className="rounded-panel border border-line bg-panel p-4" aria-label="Score leads">
+    <section id="run" className="scroll-mt-20 rounded-panel border border-line bg-panel p-4" aria-label="Score leads">
       <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
         <div className="grid gap-1">
           <div className="flex items-center justify-between">

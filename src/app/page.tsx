@@ -11,7 +11,7 @@ export default async function Home() {
   const { scores, icp, state } = await getScores();
   const run = state.run;
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div>
         <h1 className="text-20 font-medium tracking-tight">Lead fit</h1>
         <p className="mt-1 max-w-3xl text-mute">
@@ -21,7 +21,7 @@ export default async function Home() {
       <UploadPanel initialCsv={sampleCsv()} demo={isDemo()} canRun={canRunLive()} />
       {run && scores.length > 0 ? (
         <>
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
             <GradeChart counts={distribution(scores)} cutoffs={{ A: `A from ${icp.grades.A}`, B: `B from ${icp.grades.B}`, C: `C from ${icp.grades.C}`, D: `D below ${icp.grades.C}` }} />
             <CostPanel run={run} />
           </div>

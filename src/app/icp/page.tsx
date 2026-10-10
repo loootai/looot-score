@@ -10,7 +10,7 @@ export default async function IcpPage() {
   const { icp, scores } = await getScores();
   const d = distribution(scores);
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div>
         <h1 className="text-20 font-medium tracking-tight">ICP editor</h1>
         <p className="mt-1 max-w-3xl text-mute">

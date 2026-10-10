@@ -4,7 +4,9 @@
 
 ## Run it
 
-- Needs Node 20+, and `LOOOT_TOKEN` for real runs. Install: `npm install --ignore-scripts`.
+- Needs Node 20.9+ (tests 22.12+), and `LOOOT_TOKEN` for real runs. Install: `npm install --ignore-scripts`.
+- Token: `looot login` (npm i -g looot) or looot Settings > Agent tokens, scopes runs.execute, catalog.read, runs.read, usage.read. Runs need a funded balance (top-up from $5). The CLI reads the shell environment, not `.env.local`.
+- Example input: data/sample-leads.csv. Full setup, env table and troubleshooting are in README.md.
 - Free preview of cost: `npm run score -- leads.csv --dry-run` (no run, no charge).
 - Real run: `npm run score -- leads.csv --max-spend 5`. Refuses when the quote is above the cap. Writes out/score-<run>.json, .csv, .md.
 - Sample data, no token: `npm run score -- --demo` or `npm run demo` for the web UI.
@@ -21,6 +23,6 @@
 
 - Always run --dry-run first and show the quote to the user before a real run.
 - Never raise --max-spend without the user's word.
-- A "pending" call is not a failure. Re-run in the same month to collect it without a second charge.
+- A "pending" call is not a failure. Re-run inside the freshness window (month by default) to collect it without a second charge.
 - No paid run has been verified against real provider responses yet. Say so when reporting results.
 - A fact marked unknown means no provider returned it. Do not fill it in.

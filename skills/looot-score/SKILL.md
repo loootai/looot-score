@@ -7,6 +7,8 @@ description: Grade a CSV of leads A to D against an ICP with reasons, using the 
 
 Runs the looot-score CLI from a clone of https://github.com/loootai/looot-score.
 
+Setup (Node 20.9+, `npm install --ignore-scripts`, token and balance) is in the README under "What you need". Troubleshooting messages are under "Troubleshooting".
+
 1. The leads file is a CSV with an `email` column, or `first_name`, `last_name` and `domain` columns.
 2. Quote first, no charge:
    `npm run score -- <leads.csv> --max-spend <usd> --dry-run`

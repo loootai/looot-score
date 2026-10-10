@@ -25,28 +25,102 @@ Three ways to run it: a demo with sample leads, a headless CLI, and a web UI on 
 | Upload, quote, grades, lead table with reasons | ![](docs/screenshots/dashboard-light.png) | ![](docs/screenshots/dashboard-dark.png) |
 | ICP editor | ![](docs/screenshots/icp-light.png) | ![](docs/screenshots/icp-dark.png) |
 
-## Quick start
+## What you need
+
+- Node.js 20.9 or later to run the app and the CLI (Next.js 16 requires it). The tests need Node 22.12 or later (vitest 5). The repo has no `engines` field or `.nvmrc`; I ran everything on Node 24.18.
+- Git and npm.
+- For real runs only, a looot account and token. Sign up at https://looot.ai/auth/sign-up. Then either run `npm i -g looot` and `looot login`, which opens a browser approval, or open the looot web app, go to Settings, "Agent tokens" and create one ([sign-in docs](https://docs.looot.ai/get-started/sign-in)). With no browser (CI), create the token in Settings > Agent tokens and `export LOOOT_TOKEN=...`.
+- The token needs the scopes `runs.execute`, `catalog.read`, `runs.read` and `usage.read`.
+- A funded balance. The minimum top-up is $5 and signing up adds no credit ([money docs](https://docs.looot.ai/money)).
+
+No other account is used. There is no Supabase, no database and no LLM key.
+
+## Try it in one minute
 
 ```bash
+git clone https://github.com/loootai/looot-score && cd looot-score
 npm install --ignore-scripts
-npm run demo          # http://localhost:3272, 40 sample leads, no token, no network, no cost
+npm run demo
 ```
 
-Headless, with your key:
+Open http://localhost:3272. The demo scores 40 generated leads on the reserved `.example` domain, needs no token, makes no network call and costs nothing. Stop it with Ctrl+C.
+
+Prefer the terminal? `npm run score -- --demo` prints the grade counts and writes the reports to `./out`.
+
+## Run it with your own data
+
+The web UI reads `.env.local`, the CLI does not. For the CLI, `export` the variables in your shell.
 
 ```bash
-export LOOOT_TOKEN=...                       # from https://looot.ai
+cp .env.example .env.local     # web UI only
+```
+
+| Variable | Needed | What it does | Where to get it |
+| --- | --- | --- | --- |
+| `LOOOT_TOKEN` | Required for real runs | Your looot key. Not needed for `--demo` or `--dry-run`. | looot Settings > Agent tokens, or `looot login` |
+| `LOOOT_API_URL` | Optional | Overrides the API base. Default `https://api.looot.ai`. | Leave unset |
+| `LOOOT_SCORE_ICP` | Optional | Path to the ICP file the web UI reads and writes. Default `config/icp.json`. The CLI takes `--icp` instead. | Copy `config/icp.json` |
+| `LOOOT_SCORE_DIR` | Optional | Folder for the saved enrichment (`state.json`). Default `.looot-score` in the working directory. | Any writable folder |
+| `LOOOT_SCORE_DEMO` | Optional | `1` runs the web UI on sample data. `npm run demo` sets it. | Leave unset for real data |
+
+The leads file is a CSV with an `email` column, or `first_name`, `last_name` and `domain` columns. `data/sample-leads.csv` is a 40-row example with `.example` addresses, so real calls on it would find nothing. Swap in your own leads.
+
+Quote first. The CLI reads live prices from the public looot catalog, which needs no token. This is the real output of the dry run:
+
+```bash
 npm run score -- data/sample-leads.csv --dry-run
+```
+
+```text
+40 leads.
+  Person and company by email  quickenrich      people.enrich.by-email    $0.00483 x    38 =  $0.18354
+  Person by name and domain    dropleads        people.enrich              $0.0029 x     2 =   $0.0058
+  Company firmographics        thecompaniesapi  company.enrich             $0.0019 x    12 =   $0.0228
+  Tech stack                   predictleads     company.technographics     $0.0100 x    12 =   $0.1200
+  Prices: read from the public looot catalog
+Quoted $0.33 at list price ($0.00830 per lead). Cap $5.00.
+Dry run: no run was made and nothing was charged.
+```
+
+Then the real run:
+
+```bash
+export LOOOT_TOKEN=...
 npm run score -- leads.csv --icp config/icp.json --max-spend 5
 ```
 
-`--dry-run` prints the list-price quote and makes no run. Without it the CLI prints the quote, refuses when it is above `--max-spend` (`--partial` runs until the cap), and writes `score-<run>.json`, `.csv` and `.md` to `./out`. Run `npm run score -- --help` for all flags. Exit codes: 0 done, 1 error, 2 refused (over the cap or no token).
+Results go to `./out` as `score-<run>.json`, `.csv` and `.md` (change the folder with `--out`, the formats with `--format json,csv,md`). The enrichment is also saved to `.looot-score/state.json`, which the web UI reads. Run `npm run score -- --help` for all flags. Exit codes are 0 done, 1 error, 2 refused (over the cap or no token).
 
-The web UI on a live key: set `LOOOT_TOKEN`, run `npm run dev`. The ICP editor writes `config/icp.json`, which the CLI reads. Results are saved to `.looot-score/state.json`. Supabase auth is not used.
+The web UI on a live key: put `LOOOT_TOKEN` in `.env.local` and run `npm run dev` (http://localhost:3000). It has no sign-in. The ICP editor writes `config/icp.json`, which the CLI reads.
+
+## Spending
+
+- The quote is printed first. A real run is refused (exit 2) when the quote is above `--max-spend`. Pass `--partial` to run until the cap instead.
+- `--max-spend` is in dollars. The default is 5. The web UI has a cap field that works the same way.
+- The cap counts list price for calls in flight and the real charge once a call ends, so a run does not go over it.
+- At list price 100 leads cost about $0.83 to $1.67 and 1,000 leads $8 to $17, depending on how many leads share a company.
+- A failed call is not charged. A call still running when waiting stops is `pending`. Run the same command again inside the freshness window (`freshnessWindow` in the ICP file, `month` in the default) and finished calls replay at no charge.
+- Editing the ICP and re-scoring stored leads in the web UI makes no looot call.
+
+## Deploy
+
+I have not deployed this to Vercel. The steps below follow the code.
+
+1. Push a copy of the repo to your own GitHub account.
+2. In Vercel choose Add New > Project, import the repo. Next.js is detected, there is no `vercel.json`.
+3. Add the environment variable `LOOOT_TOKEN`. Add `LOOOT_SCORE_DIR` and `LOOOT_SCORE_ICP` too (see below).
+4. Deploy.
+
+Two things to know first.
+
+- The app has no sign-in. Anyone who can open the URL can upload leads and start a run that spends your balance, up to the cap they type in. Turn on Vercel Deployment Protection, or keep the app on your own machine.
+- Live mode writes files. The enrichment goes to `.looot-score/state.json` after the calls are paid, and the ICP editor writes `config/icp.json`. A serverless function may not be able to write either. Point `LOOOT_SCORE_DIR` and `LOOOT_SCORE_ICP` at writable paths. On Vercel that is `/tmp`, which does not persist between invocations. For history across runs use the CLI, or a host with a persistent disk.
+
+There is no scheduled workflow in this repo.
 
 ## The ICP file
 
-`config/icp.json`, validated on load, edited in the UI or by hand.
+`config/icp.json`, validated on load, edited in the UI or by hand. A bad file stops the run with `Invalid <file>: <field>: <problem>`.
 
 | Criterion | Default points | What earns points |
 | --- | --- | --- |
@@ -74,13 +148,39 @@ The company call is sent `info@<domain>` because the endpoint looks a company up
 
 One person call per lead, one company call and one tech call per domain. With three leads per company, a lead costs about $0.008. With one lead per company, $0.0167. So 100 leads is about $0.83 to $1.67 at list price, and 1,000 leads $8 to $17.
 
-## What is dropped, and what is not tested
+## What is dropped
 
 - No behavioural or engagement scoring, no predictive model trained on your closed-won deals, no CRM sync. MadKudu has these. This tool grades fit only, from rules you can read.
 - MadKudu grades run A to E. This one runs A to D, as asked.
-- No paid looot run was made. Request fields follow each endpoint's documented parameters. Response parsers are built from provider docs and fixtures and read defensively, but no real response body has been checked against them. `shapeVerified` is `false` for every call in `src/engine/providers.ts`. Run `--dry-run` and a 5-lead run first, and expect to adjust a parser.
 - Headcount ranges such as "51-200" are scored at their middle value.
 - Demo leads use the reserved `.example` domain. The data is generated, not real.
+
+## Troubleshooting
+
+Messages are quoted from the code. The CLI prints them as shown. Messages that begin "Stopped:" carry the text looot returned.
+
+| You see | What it means | What to do |
+| --- | --- | --- |
+| `LOOOT_TOKEN is not set. Create a key at https://looot.ai, or try --demo or --dry-run.` | No token in the environment. Exit code 2. | `export LOOOT_TOKEN=...` in the same shell. The CLI does not read `.env.local`. |
+| `LOOOT_TOKEN is not set on the server. Set it, or start the demo with npm run demo.` (HTTP 503) | The web UI has no token. | Put it in `.env.local` and restart `npm run dev`, or add it in Vercel. |
+| `Stopped: <message from looot>` after a 401 or code `unauthorized`, `invalid_token`, `missing_token` | looot rejected the token. The run stops at the first one. | Create a new token in Settings > Agent tokens with the four scopes listed above. |
+| `Stopped: <message from looot>` after a 402 or code `insufficient_funds`, `payment_required` | The balance is too low. | Top up (minimum $5) at https://docs.looot.ai/money, then run again. Finished calls replay free. |
+| `Run <id> is blocked.` or status `failed` with the error code looot gave | A call was blocked or failed. It is counted in "calls failed" and not charged. | Read the code in the report, then retry. |
+| `Run <id> is queued.` / `running` / `pending_provider`, shown as `pending` | The provider had not finished when waiting stopped (60 s). Not a failure. | Run the same command again in the same window. |
+| A fact marked unknown, or a call that ends as a parse error | The response did not match what the parser expects, or no provider returned the fact. | See "How to file an issue". |
+| `Live price unreadable for <endpoint>. Those calls will be skipped.` | The public catalog has no readable call price for that endpoint. | Use `--offline` for the dated prices, or empty the tech lists in the ICP to drop the tech call. |
+| `Refused: the quote is above the cap. Raise --max-spend, score fewer leads, or pass --partial to run until the cap.` | The quote is above `--max-spend`. Exit code 2. | Do what it says. |
+| `The CSV needs an email column, or a name column and a domain column. Found: ...` | The header row has none of the expected columns. | Rename the columns, see the leads file format above. |
+| `Skipped N rows: line 3: needs an email, or a first and last name and a domain` | Rows with no usable identity are left out. | Fix those rows. The rest still runs. |
+| `Unknown option --x. Run with --help.` | A flag typo. The CLI stops so a typo never runs with defaults. | Fix the flag. |
+
+How to file an issue. Open one at https://github.com/loootai/looot-score/issues with the run id (printed in the report and shown in the web UI), the command you used, and the raw response body with secrets removed.
+
+## Status
+
+No paid looot run was made. Request fields follow each endpoint's documented parameters. Response parsers are built from provider docs and fixtures and read defensively, but no real response body has been checked against them. `shapeVerified` is `false` for every call in `src/engine/providers.ts`. Run `--dry-run` and a 5-lead run first, and expect to adjust a parser.
+
+If a parser fails on a real response, open an issue with the raw body (see Troubleshooting).
 
 ## Install for agents
 

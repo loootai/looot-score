@@ -1,6 +1,10 @@
+<p align="center"><img src="assets/hero.png" alt="looot-score" width="100%"></p>
+
 # looot-score
 
-An open-source alternative to [MadKudu](https://www.madkudu.com) for lead and ICP fit scoring. Third-party listings put MadKudu's entry plan at $999 a month; its own pricing page redirected to HG Insights and could not be read (checked 2026-10-10). looot-score enriches a CSV of leads through [looot](https://looot.ai), scores each one against an ICP you edit, and returns a grade A to D with the reasons.
+[![License](https://img.shields.io/github/license/loootai/looot-score)](LICENSE) [![Release](https://img.shields.io/github/v/release/loootai/looot-score)](https://github.com/loootai/looot-score/releases) [![Docs](https://img.shields.io/badge/docs-docs.looot.ai-12A06A)](https://docs.looot.ai)
+
+An open-source alternative to [MadKudu](https://www.madkudu.com) for lead and ICP fit scoring. MadKudu's own pricing page redirected to HG Insights and could not be read (checked 2026-10-10), so no price is stated here as fact. Third-party listings give an estimate of about $999 a month for the entry plan; treat it as unconfirmed. looot-score enriches a CSV of leads through [looot](https://looot.ai), scores each one against an ICP you edit, and returns a grade A to D with the reasons.
 
 ![Dashboard, light](docs/screenshots/dashboard-light.png)
 
@@ -96,3 +100,20 @@ npm run leak-scan                 # also runs from .githooks/pre-commit: git con
 Layout: `src/engine` (client, lead parsing, providers, scoring, run loop, reports, no framework imports), `src/cli`, `src/server` and `src/app` (Next.js App Router), `config/icp.json`, `data/sample-leads.csv`.
 
 MIT licence, copyright looot.
+
+## Related
+
+Other open-source projects built on [looot](https://looot.ai):
+
+- [looot-intent](https://github.com/loootai/looot-intent): account intent and buying-stage scoring (6sense)
+- [looot-reveal](https://github.com/loootai/looot-reveal): which companies visit your site (RB2B, Clearbit Reveal)
+- [looot-techstack](https://github.com/loootai/looot-techstack): website technologies from several providers (BuiltWith, Wappalyzer)
+- [looot-signals](https://github.com/loootai/looot-signals): hiring, funding and news triggers (TheirStack, Harmonic)
+- [looot-lookalike](https://github.com/loootai/looot-lookalike): lookalike company search (Ocean.io)
+- [looot-ads](https://github.com/loootai/looot-ads): competitor ad board (Foreplay)
+- [looot-reviews](https://github.com/loootai/looot-reviews): review themes and weak spots (ReviewTrackers)
+- [looot-battlecards](https://github.com/loootai/looot-battlecards): competitor battlecards (Klue, Crayon)
+- [looot-mentions](https://github.com/loootai/looot-mentions): brand and keyword listening (Brand24)
+- [looot-crm](https://github.com/loootai/looot-crm): a small CRM with buying signals built in
+- [looot-seo](https://github.com/loootai/looot-seo): self-hosted SEO workspace
+- [looot-monitor](https://github.com/loootai/looot-monitor): brand and competitor monitoring with alerts

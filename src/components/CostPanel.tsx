@@ -12,7 +12,7 @@ export function CostPanel({ run }: { run: EnrichRun }) {
       x.cost += c.costMicros;
       if (c.status === "ok") x.ok += 1;
       else if (c.status === "pending") x.pending += 1;
-      else if (c.status === "skipped_cap" || c.status === "skipped_price") x.skipped += 1;
+      else if (c.status === "skipped_cap" || c.status === "skipped_budget" || c.status === "skipped_price") x.skipped += 1;
       else x.failed += 1;
       per.set(c.kind, x);
     }
@@ -35,6 +35,7 @@ export function CostPanel({ run }: { run: EnrichRun }) {
       <p className="mt-2 text-12 text-mute">
         {run.demo ? "Demo data. No looot call was made, so the spend is zero. The quote is what the same run costs live." : "Spend is what looot charged. A failed call costs nothing."}
         {run.pendingCalls > 0 && ` ${run.pendingCalls} calls are still running at the provider. They are pending, not failed. Run again in the same window to collect them without a second charge.`}
+        {(run.skippedByBudget ?? 0) > 0 && ` ${run.skippedByBudget} calls were skipped because the period budget would have been passed.`}
         {run.skippedByCap > 0 && ` ${run.skippedByCap} calls were skipped because the cap would have been passed.`}
         {" Re-scoring after an ICP edit makes no call and costs nothing."}
       </p>

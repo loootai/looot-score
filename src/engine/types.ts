@@ -29,7 +29,7 @@ export interface CompanyFacts {
 }
 
 export type CallKind = "person_by_email" | "person_by_name" | "company" | "tech";
-export type CallStatus = "ok" | "failed" | "pending" | "skipped_cap" | "skipped_price" | "parse_error";
+export type CallStatus = "ok" | "failed" | "pending" | "skipped_cap" | "skipped_budget" | "skipped_price" | "parse_error";
 
 /** One looot call made for a lead. Calls shared by several leads (same company) are paid once. */
 export interface CallRecord {
@@ -108,6 +108,10 @@ export interface EnrichRun {
   quotedMicros: number;
   spentMicros: number;
   skippedByCap: number;
+  /** Calls not made because the period budget would have been passed. */
+  skippedByBudget?: number;
+  /** The refusal text when the period budget stopped a call. */
+  budgetMessage?: string | null;
   pendingCalls: number;
   failedCalls: number;
   aborted: string | null;

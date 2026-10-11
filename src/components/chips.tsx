@@ -13,7 +13,7 @@ export function GradeChip({ grade, className }: { grade: Grade; className?: stri
   return <span className={cn("inline-grid size-6 place-items-center rounded-control text-13 font-semibold", GRADE_STYLE[grade], className)}>{grade}</span>;
 }
 
-const STATUS_LABEL: Record<CallStatus, string> = { ok: "ok", failed: "failed", pending: "pending", skipped_cap: "skipped, cap", skipped_price: "skipped, price", parse_error: "unreadable" };
+const STATUS_LABEL: Record<CallStatus, string> = { ok: "ok", failed: "failed", pending: "pending", skipped_cap: "skipped, cap", skipped_budget: "skipped, budget", skipped_price: "skipped, price", parse_error: "unreadable" };
 
 /** A call status. Only the ones that need attention are drawn loud. */
 export function StatusChip({ status }: { status: CallStatus }) {

@@ -102,12 +102,21 @@ The web UI on a live key: put `LOOOT_TOKEN` in `.env.local` and run `npm run dev
 
 ## Spending
 
+Four limits stand between a request and a charge, checked in this order: the quote, the cap per run, the period budget, then the call.
+
 - The quote is printed first. A real run is refused (exit 2) when the quote is above `--max-spend`. Pass `--partial` to run until the cap instead.
 - `--max-spend` is in dollars. The default is 5. In the web UI the cap is `LOOOT_SCORE_CAP_USD` on the server, shown on the page and not editable there. A `capUsd` in a request is ignored. A session can start 6 runs per 10 minutes.
-- The cap counts list price for calls in flight and the real charge once a call ends, so a run does not go over it.
+- The period budget caps all runs together: a daily and a monthly amount (UTC), $10 and $50 until you change them. The owner changes them on the Costs page of the web UI, or sets the starting values with `LOOOT_SCORE_DAILY_USD` and `LOOOT_SCORE_MONTHLY_USD`. A request to `/api/run` cannot carry a budget: any budget field in it is ignored. The CLI refuses a run whose quote is above what is left, unless you pass `--partial`.
+- Before each paid call the app reserves its list price in `budget.json` (in `LOOOT_SCORE_DIR`), under a lock file, and refuses the call if used plus reserved plus the price would pass the daily or the monthly budget. Two requests started together cannot both pass. When the call ends the reservation becomes the real charge. A failed call releases it. A call still running at looot (`pending`) keeps its reservation: it is never recorded as failed at $0 and the budget is never handed back early. Reserved money counts against the budget until the call ends.
+- The next run looks up every pending call with `GET /v1/runs/{id}` and settles the ones that ended, to their real cost. If looot cannot be reached, or the app died before it got a run id, the reservation stays for 24 hours and is then released.
+- The sidebar and the Costs page show used, reserved and remaining for today and this month. At the budget the run is refused with a message that names the limit.
+- Every call has a stable key made from the call, its normalised input and the freshness window, and a finished call is stored under it. Repeating the same request inside the window is answered from the stored result: no call, no reservation, no charge. If a stored result is missing, looot replays the same key without charging again.
+- The looot token balance is the final limit. Fund a dedicated token with only what you are willing to spend, and keep the budget below it.
 - At list price 100 leads cost about $0.83 to $1.67 and 1,000 leads $8 to $17, depending on how many leads share a company.
-- A failed call is not charged. A call still running when waiting stops is `pending`. Run the same command again inside the freshness window (`freshnessWindow` in the ICP file, `month` in the default) and finished calls replay at no charge.
+- A failed call is not charged. Run the same command again inside the freshness window (`freshnessWindow` in the ICP file, `month` in the default) and finished calls replay at no charge.
 - Editing the ICP and re-scoring stored leads in the web UI makes no looot call.
+
+The budget lives in a file, so run one instance on a disk that persists. Several instances, or a serverless host with a throwaway disk, do not share it.
 
 ## Securing a deployment
 
@@ -120,8 +129,8 @@ Pages and routes were listed from `src/app` and classified. A test reads the fol
 | Kind | Count | Routes |
 |---|---|---|
 | Public | 4 | `/login`, `/api/auth/login`, `/api/auth/logout`, `/api/health` |
-| Admin pages | 2 | `/` (upload, quote, run, scores), `/icp` |
-| Admin API | 3 | `/api/run` (paid), `/api/quote`, `/api/icp` (read and rewrite the ICP file) |
+| Admin pages | 3 | `/` (upload, quote, run, scores), `/icp`, `/costs` (budget and cost) |
+| Admin API | 4 | `/api/run` (paid), `/api/quote`, `/api/icp` (read and rewrite the ICP file), `/api/budget` (read, and change the period budget) |
 
 Any path not listed is treated as admin.
 
@@ -133,6 +142,7 @@ Any path not listed is treated as admin.
 - Every state-changing admin request needs a same-origin `Origin` header and the per-session token in `x-score-csrf`. The layout puts the token in a meta tag and the app's own calls send it.
 - A run (`/api/run`) needs the session and the CSRF token. The body carries only the CSV. The cap is `LOOOT_SCORE_CAP_USD` on the server (default 5), the run is refused when the quote is above it, and a session can start 6 runs per 10 minutes.
 - Writing the ICP (`PUT /api/icp`) needs the session and the CSRF token.
+- The period budget (`PUT /api/budget`) is changed only by the signed-in owner, with the CSRF token. A run cannot raise it. See [Spending](#spending). The looot token balance is the final limit, so give the app a token funded with only what you are willing to spend.
 - Admin responses carry `Cache-Control: no-store`. All responses carry a Content-Security-Policy (`frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The CSP allows inline scripts because Next.js needs them.
 - The demo (`npm run demo`) has no sign-in and shows a "Demo, no sign-in" badge. It refuses to start next to a `LOOOT_TOKEN` or a data file unless an admin password is set.
 

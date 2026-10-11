@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { Budget } from "../engine/budget";
 import { DEMO_NOW, demoCsv, demoRunner } from "../engine/demo";
 import { buildQuote, runEnrichment } from "../engine/engine";
 import { DEFAULT_ICP_PATH, loadIcp } from "../engine/icp";
@@ -23,7 +24,7 @@ The CSV needs an email column, or name columns and a domain column.
 Options
   --icp <file>            ICP config (default ${DEFAULT_ICP_PATH})
   --max-spend <usd>       Per-run spend cap in dollars (default 5)
-  --partial               Run until the cap even when the quote is above it
+  --partial               Run until the cap or the period budget even when the quote is above it
   --out <dir>             Where reports go (default ./out)
   --format json,csv,md    Report formats (default json,csv,md)
   --dry-run               Print the list-price cost and make no run
@@ -34,6 +35,8 @@ Options
 Environment
   LOOOT_TOKEN             Your looot key. Not needed for --demo or --dry-run
   LOOOT_API_URL           Override the API base (default https://api.looot.ai)
+  LOOOT_SCORE_DAILY_USD   Default daily budget until the owner saves one in the web UI (default 10)
+  LOOOT_SCORE_MONTHLY_USD Default monthly budget (default 50)
 `;
 
 interface Args {
@@ -157,7 +160,18 @@ export async function main(argv: string[], env: Record<string, string | undefine
         throw e;
       }
     }
-    const run = await runEnrichment({ leads, rejected, icp, looot, prices, priceSource, unpriced, capMicros, now: args.demo ? DEMO_NOW : new Date(), demo: args.demo, onProgress: (d, t) => (d % 10 === 0 || d === t) && out(`  ${d}/${t}`) });
+    // Check order: quote, per-run cap (above), period budget, then the calls.
+    const budget = args.demo ? undefined : new Budget();
+    if (budget && "getRun" in looot) {
+      await budget.reconcile(looot as unknown as { getRun(id: string): Promise<import("../engine/looot").LoootRun> });
+      const room = await budget.status();
+      out(`Budget left: ${usd(room.remainingMicros)} (${usd(room.day.remainingMicros)} today, ${usd(room.month.remainingMicros)} this month, ${usd(room.day.reservedMicros)} reserved).`);
+      if (quote.totalMicros > room.remainingMicros && !args.partial) {
+        out("Refused: the quote is above what is left of the period budget. Wait for the period to roll over, raise the budget on the Costs page of the web UI, or pass --partial to run until it is reached.");
+        return 2;
+      }
+    }
+    const run = await runEnrichment({ leads, rejected, icp, looot, prices, priceSource, unpriced, capMicros, ledger: budget, now: args.demo ? DEMO_NOW : new Date(), demo: args.demo, onProgress: (d, t) => (d % 10 === 0 || d === t) && out(`  ${d}/${t}`) });
     const scores = scoreAll(run.profiles, icp);
 
     fs.mkdirSync(args.out, { recursive: true });
@@ -181,6 +195,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     out("");
     out(`Grades: A ${d.A}, B ${d.B}, C ${d.C}, D ${d.D}`);
     out(`Spent ${usd(run.spentMicros)} of ${usd(capMicros)} cap.${run.pendingCalls ? ` ${run.pendingCalls} calls pending, run again to collect them without a second charge.` : ""}${run.skippedByCap ? ` ${run.skippedByCap} calls skipped by the cap.` : ""}${run.failedCalls ? ` ${run.failedCalls} calls failed.` : ""}`);
+    if (run.budgetMessage) out(`${run.skippedByBudget} calls skipped. ${run.budgetMessage}`);
     if (run.aborted) out(run.aborted);
     for (const w of written) out(`Wrote ${w}`);
     return run.aborted ? 1 : 0;

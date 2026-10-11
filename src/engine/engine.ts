@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import type { Ledger } from "./budget";
 import type { Icp } from "./icp";
 import { emailDomain, PERSONAL_EMAIL_DOMAINS } from "./leads";
 import { LoootError, type PriceMap, type Runner } from "./looot";
@@ -75,6 +77,12 @@ export function idempotencyKey(kind: CallKind, input: Record<string, unknown>, i
   return `score:v1:${kind}:${shortHash(JSON.stringify(input))}:${windowStamp(now, icp.freshnessWindow)}`;
 }
 
+/** Hash of what a paid call asks for: endpoint and input, with sorted keys and lowercased text. Guards a short key against a collision. */
+export function callFingerprint(endpointId: string, input: Record<string, unknown>): string {
+  const norm = (v: unknown): unknown => (typeof v === "string" ? v.trim().toLowerCase() : Array.isArray(v) ? v.map(norm) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, x]) => [k, norm(x)])) : v);
+  return createHash("sha256").update(JSON.stringify([endpointId, norm(input)])).digest("hex");
+}
+
 export interface RunOptions {
   leads: Lead[];
   rejected?: string[];
@@ -84,6 +92,8 @@ export interface RunOptions {
   priceSource?: Quote["priceSource"];
   unpriced?: readonly string[];
   capMicros: number;
+  /** Period budget, reservations and stored answers. Left out in demo mode and in tests that do not need it. */
+  ledger?: Ledger;
   now?: Date;
   demo?: boolean;
   onProgress?: (done: number, total: number) => void;
@@ -125,6 +135,8 @@ export async function runEnrichment(opts: RunOptions): Promise<EnrichRun> {
   let committed = 0;
   let spent = 0;
   let skippedByCap = 0;
+  let skippedByBudget = 0;
+  let budgetMessage: string | null = null;
   let pendingCalls = 0;
   let failedCalls = 0;
   let aborted: string | null = null;
@@ -142,13 +154,33 @@ export async function runEnrichment(opts: RunOptions): Promise<EnrichRun> {
       skippedByCap += 1;
       return { rec: { ...base, status: "skipped_cap", message: "Spend cap reached." }, facts: {} };
     }
+    const ledger = opts.demo ? undefined : opts.ledger;
+    const key = idempotencyKey(need.kind, need.input, icp, now);
+    const fp = callFingerprint(def.endpointId, need.input);
+    if (ledger) {
+      const stored = await ledger.recall(key, fp, now);
+      if (stored) {
+        try {
+          return { rec: { ...base, status: "ok", runId: stored.runId, message: "Answered from the stored result. No call, no charge." }, facts: def.parse(stored.result) };
+        } catch {
+          // A stored result that no longer parses is called again; the same key replays it at looot with no second charge.
+        }
+      }
+      const held = await ledger.reserve(key, listPriceMicros, now, fp);
+      if (!held.ok) {
+        skippedByBudget += 1;
+        budgetMessage = held.message;
+        return { rec: { ...base, status: "skipped_budget", message: held.message }, facts: {} };
+      }
+    }
     if (!opts.demo) committed += listPriceMicros;
     try {
-      const run = await looot.runAndWait(def.endpointId, need.input, idempotencyKey(need.kind, need.input, icp, now));
+      const run = await looot.runAndWait(def.endpointId, need.input, key);
       const cost = opts.demo ? 0 : toMicros(run.actualCost);
       if (run.status === "completed") {
         committed += cost - listPriceMicros;
         spent += cost;
+        await ledger?.settle(key, fp, cost, now, run);
         try {
           return { rec: { ...base, status: "ok", costMicros: cost, runId: run.runId }, facts: def.parse(run.result) };
         } catch (e) {
@@ -160,14 +192,20 @@ export async function runEnrichment(opts: RunOptions): Promise<EnrichRun> {
         committed += cost - listPriceMicros;
         spent += cost;
         failedCalls += 1;
+        await ledger?.settle(key, fp, cost, now);
         return { rec: { ...base, status: "failed", costMicros: cost, runId: run.runId, errorCode: run.error?.code ?? run.status, message: run.error?.message }, facts: {} };
       }
+      // Still running at looot: the reservation stays until the run ends. It is never recorded failed at zero.
       pendingCalls += 1;
+      await ledger?.attach(key, run.runId);
       return { rec: { ...base, status: "pending", runId: run.runId, message: `Run ${run.runId} is ${run.status}.` }, facts: {} };
     } catch (e) {
       committed -= listPriceMicros;
       failedCalls += 1;
       const err = e instanceof LoootError ? e : null;
+      // An HTTP answer from looot means the call did not run, so the reservation goes back. A network error is unknown:
+      // the request may have been accepted, so the reservation stays until the hard expiry or a replay settles it.
+      if (err) await ledger?.release(key);
       if (err && (FAIL_STOPS.has(err.code ?? "") || err.status === 401 || err.status === 402)) aborted = `Stopped: ${err.message}`;
       return { rec: { ...base, status: "failed", errorCode: err?.code ?? "network_error", message: (e as Error).message }, facts: {} };
     }
@@ -221,6 +259,8 @@ export async function runEnrichment(opts: RunOptions): Promise<EnrichRun> {
     quotedMicros: quote.totalMicros,
     spentMicros: spent,
     skippedByCap,
+    skippedByBudget,
+    budgetMessage,
     pendingCalls,
     failedCalls,
     aborted,

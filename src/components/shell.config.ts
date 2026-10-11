@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ListChecks, SlidersHorizontal } from "lucide-react";
+import { ListChecks, SlidersHorizontal, Wallet } from "lucide-react";
 
 export type ShellNavItem = {
   href: string;
@@ -23,5 +23,6 @@ export const SHELL = {
   nav: <ShellNavItem[]>[
     { href: "/", label: "Leads", title: "Lead fit", icon: ListChecks, action: { label: "Score leads", href: "/#run" } },
     { href: "/icp", label: "ICP editor", icon: SlidersHorizontal },
+    { href: "/costs", label: "Costs", title: "Costs and budget", icon: Wallet },
   ],
 };

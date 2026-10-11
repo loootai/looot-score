@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { Loader2, Upload } from "lucide-react";
 import { usd, usdPrecise } from "@/engine/money";
 import type { Quote } from "@/engine/types";
+import { adminFetch } from "@/components/adminFetch";
 
 interface QuoteReply {
   quote: Quote;
@@ -14,23 +15,22 @@ interface QuoteReply {
 }
 
 /** Upload or paste a leads CSV. Shows the quote before anything is bought, then runs the enrichment. */
-export function UploadPanel({ initialCsv, demo, canRun }: { initialCsv: string; demo: boolean; canRun: boolean }) {
+export function UploadPanel({ initialCsv, demo, canRun, capUsd }: { initialCsv: string; demo: boolean; canRun: boolean; capUsd: number }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [csv, setCsv] = useState(initialCsv);
-  const [cap, setCap] = useState("5");
   const [reply, setReply] = useState<QuoteReply | null>(null);
   const [quotedFor, setQuotedFor] = useState("");
   const [busy, setBusy] = useState<"quote" | "run" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const capNum = Number(cap);
+  const capNum = capUsd;
   const total = reply?.quote.totalMicros ?? 0;
   const fresh = reply !== null && quotedFor === csv;
   const overCap = fresh && total > capNum * 1_000_000;
 
   async function post(path: string, body: unknown) {
-    const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const res = await adminFetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const json = (await res.json()) as { error?: string };
     if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
     return json;
@@ -53,7 +53,7 @@ export function UploadPanel({ initialCsv, demo, canRun }: { initialCsv: string; 
     setBusy("run");
     setError(null);
     try {
-      await post("/api/run", { csv, capUsd: capNum });
+      await post("/api/run", { csv });
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -74,10 +74,7 @@ export function UploadPanel({ initialCsv, demo, canRun }: { initialCsv: string; 
           <textarea id="csv" value={csv} onChange={(e) => setCsv(e.target.value)} rows={7} spellCheck={false} className="num w-full resize-y whitespace-pre rounded-control border border-line-strong bg-page p-2 text-12 leading-5" />
         </div>
         <div className="grid content-start gap-3 lg:w-48">
-          <label className="grid gap-1">
-            <span className="text-12 font-medium text-mute">Spend cap, USD</span>
-            <input value={cap} onChange={(e) => setCap(e.target.value)} inputMode="decimal" className="num w-full rounded-control border border-line-strong bg-page px-2 py-1.5 text-13" />
-          </label>
+          <p className="text-12 text-mute" title="Set on the server in LOOOT_SCORE_CAP_USD. The browser cannot change it.">Spend cap {usd(capNum * 1_000_000)} per run, set on the server.</p>
           <button type="button" onClick={getQuote} disabled={busy !== null} className="rounded-control border border-line-strong bg-panel px-3 py-1.5 font-medium hover:bg-hover disabled:opacity-50">
             {busy === "quote" ? <Loader2 className="mx-auto size-4 animate-spin" /> : "Get quote"}
           </button>

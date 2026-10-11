@@ -10,11 +10,24 @@ import { FALLBACK_PRICES } from "@/engine/providers";
 import { scoreAll } from "@/engine/score";
 import { readState, writeState, type State } from "@/engine/state";
 import type { LeadScore, Quote } from "@/engine/types";
+import { allow, retryAfter } from "@/lib/auth/limits";
 
 /** true when the app runs on sample data: no token, no network, no cost. */
 export function isDemo(): boolean {
   return process.env.LOOOT_SCORE_DEMO === "1";
 }
+
+/** Spend cap per run in dollars. Set by the server in LOOOT_SCORE_CAP_USD, default 5. The browser cannot change it. */
+export function serverCapUsd(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.LOOOT_SCORE_CAP_USD);
+  return Number.isFinite(n) && n > 0 ? n : 5;
+}
+
+/** Runs one session may start in a window. */
+export const RUNS_PER_WINDOW = 6;
+export const RUN_WINDOW_MS = 10 * 60_000;
+
+export class RunLimitError extends Error {}
 
 export function canRunLive(): boolean {
   return hasLoootToken();
@@ -61,6 +74,8 @@ export async function getScores(): Promise<{ scores: LeadScore[]; icp: Icp; stat
 }
 
 export interface QuoteReply {
+  /** The server's cap per run in dollars, so the screen can show it. */
+  capUsd: number;
   quote: Quote;
   rejected: string[];
   leads: number;
@@ -71,18 +86,24 @@ export interface QuoteReply {
 export async function quoteFor(csv: string): Promise<QuoteReply> {
   const { leads, rejected } = parseLeads(csv);
   const icp = await getIcp();
-  if (isDemo()) return { quote: buildQuote(leads, icp, FALLBACK_PRICES, "catalog"), rejected, leads: leads.length, unpriced: [] };
+  if (isDemo()) return { capUsd: serverCapUsd(), quote: buildQuote(leads, icp, FALLBACK_PRICES, "catalog"), rejected, leads: leads.length, unpriced: [] };
   const live = await fetchPrices(FALLBACK_PRICES);
-  return { quote: buildQuote(leads, icp, live.prices, live.source), rejected, leads: leads.length, unpriced: live.unread };
+  return { capUsd: serverCapUsd(), quote: buildQuote(leads, icp, live.prices, live.source), rejected, leads: leads.length, unpriced: live.unread };
 }
 
-/** Enriches the leads for the UI and saves the result. The UI never sees the token. */
-export async function runFor(input: { csv: string; capUsd: number }): Promise<{ runId: string; spentMicros: number; leads: number }> {
+/**
+ * Enriches the leads for the UI and saves the result. The UI never sees the token.
+ * The cap is the server's, the quote is checked against it, and a session may start `RUNS_PER_WINDOW` runs per window.
+ */
+export async function runFor(input: { csv: string; sid?: string }): Promise<{ runId: string; spentMicros: number; leads: number }> {
   const { leads, rejected } = parseLeads(input.csv);
   if (leads.length === 0) throw new Error("No usable leads in the CSV.");
   if (leads.length > 2000) throw new Error("At most 2,000 leads per run.");
   const icp = await getIcp();
-  const capMicros = toMicros(input.capUsd);
+  const capUsd = serverCapUsd();
+  const capMicros = toMicros(capUsd);
+  const limitKey = `run:${input.sid ?? "demo"}`;
+  if (!allow(limitKey, RUNS_PER_WINDOW, RUN_WINDOW_MS)) throw new RunLimitError(`Too many runs from this session. Try again in ${retryAfter(limitKey)} seconds.`);
   if (isDemo()) {
     const run = await runEnrichment({ icp, leads, rejected, looot: demoRunner(), prices: FALLBACK_PRICES, capMicros, now: DEMO_NOW, demo: true });
     globalThis.__scoreDemoState = { run, icp: globalThis.__scoreDemoState?.icp ?? null };
@@ -91,7 +112,7 @@ export async function runFor(input: { csv: string; capUsd: number }): Promise<{ 
   const looot = loootFromEnv();
   const live = await fetchPrices(FALLBACK_PRICES);
   const quote = buildQuote(leads, icp, live.prices, live.source);
-  if (quote.totalMicros > capMicros) throw new Error(`The quote ($${(quote.totalMicros / 1e6).toFixed(2)}) is above the cap ($${input.capUsd.toFixed(2)}). Raise the cap or score fewer leads.`);
+  if (quote.totalMicros > capMicros) throw new Error(`The quote ($${(quote.totalMicros / 1e6).toFixed(2)}) is above the cap ($${capUsd.toFixed(2)}). Score fewer leads, or raise LOOOT_SCORE_CAP_USD on the server.`);
   const run = await runEnrichment({ icp, leads, rejected, looot, prices: live.prices, priceSource: live.source, unpriced: live.unread, capMicros });
   writeState({ run, icp: null });
   return { runId: run.runId, spentMicros: run.spentMicros, leads: leads.length };

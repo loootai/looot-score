@@ -3,11 +3,13 @@ import { GradeChart } from "@/components/GradeChart";
 import { LeadTable } from "@/components/LeadTable";
 import { UploadPanel } from "@/components/UploadPanel";
 import { distribution } from "@/engine/score";
-import { canRunLive, getScores, isDemo, sampleCsv } from "@/server/runtime";
+import { canRunLive, getScores, isDemo, sampleCsv, serverCapUsd } from "@/server/runtime";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  await requireAdminPage();
   const { scores, icp, state } = await getScores();
   const run = state.run;
   return (
@@ -18,7 +20,7 @@ export default async function Home() {
           Upload leads, enrich them through looot and grade them A to D against your ICP: <span className="text-ink">{icp.name}</span>. Every grade lists the facts behind it and which provider supplied each one. The quote comes before the run.
         </p>
       </div>
-      <UploadPanel initialCsv={sampleCsv()} demo={isDemo()} canRun={canRunLive()} />
+      <UploadPanel initialCsv={sampleCsv()} demo={isDemo()} canRun={canRunLive()} capUsd={serverCapUsd()} />
       {run && scores.length > 0 ? (
         <>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">

@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { IcpEditor } from "@/components/IcpEditor";
 import { distribution } from "@/engine/score";
 import { getScores, isDemo } from "@/server/runtime";
+import { requireAdminPage } from "@/lib/auth/guard";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "ICP editor" };
 
 export default async function IcpPage() {
+  await requireAdminPage();
   const { icp, scores } = await getScores();
   const d = distribution(scores);
   return (

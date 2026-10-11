@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Icp } from "@/engine/icp";
+import { adminFetch } from "@/components/adminFetch";
 
 const csv = (a: string[]) => a.join(", ");
 const toList = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
@@ -50,7 +51,7 @@ export function IcpEditor({ initial, saveNote }: { initial: Icp; saveNote: strin
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/icp", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(icp) });
+      const res = await adminFetch("/api/icp", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(icp) });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
       setMsg({ ok: true, text: "Saved. Every stored lead is re-scored with the new ICP. No looot call was made." });

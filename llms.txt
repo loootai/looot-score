@@ -9,7 +9,7 @@
 - Example input: data/sample-leads.csv. Full setup, env table and troubleshooting are in README.md.
 - Free preview of cost: `npm run score -- leads.csv --dry-run` (no run, no charge).
 - Real run: `npm run score -- leads.csv --max-spend 5`. Refuses when the quote is above the cap. Writes out/score-<run>.json, .csv, .md.
-- Sample data, no token: `npm run score -- --demo` or `npm run demo` for the web UI.
+- Sample data, no token: `npm run score -- --demo` or `npm run demo` for the web UI (no sign-in, refuses to start next to a real token). The web UI outside the demo needs LOOOT_SCORE_ADMIN_PASSWORD (12+ characters); the spend cap per run is LOOOT_SCORE_CAP_USD.
 - Exit codes: 0 done, 1 error, 2 refused (over cap or no token).
 
 ## Files

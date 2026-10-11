@@ -1,17 +1,18 @@
 {
   "name": "looot-score",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "Open-source lead and ICP fit scoring. A CSV of leads in, enriched through looot, graded A to D with reasons. Next.js and looot.",
   "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "demo": "LOOOT_SCORE_DEMO=1 next dev -p 3272",
+    "demo": "node scripts/demoGuard.mjs && LOOOT_SCORE_DEMO=1 next dev -p 3272",
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --incremental false",
     "lint": "eslint .",
+    "hash-password": "node scripts/hashPassword.mjs",
     "leak-scan": "LEAK_SCAN_ALLOWED_EMAILS='@([a-z0-9-]+\\.example|gmail\\.com)$' bash scripts/leak-scan.sh .",
     "score": "tsx src/cli/cli.ts"
   },

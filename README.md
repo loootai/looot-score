@@ -2,6 +2,8 @@
 
 # looot-score
 
+> **Security notice.** Versions 0.1.2 and older had no admin sign-in. Anyone who could reach a deployed instance could start paid runs with a spend cap of their own choosing, rewrite the ICP file, and read the stored enrichment. If you run 0.1.2 or older on a reachable host, upgrade to 0.1.3 and set `LOOOT_SCORE_ADMIN_PASSWORD`. See [Securing a deployment](#securing-a-deployment).
+
 [![License](https://img.shields.io/github/license/loootai/looot-score)](LICENSE) [![Release](https://img.shields.io/github/v/release/loootai/looot-score)](https://github.com/loootai/looot-score/releases) [![Docs](https://img.shields.io/badge/docs-docs.looot.ai-12A06A)](https://docs.looot.ai)
 
 An open-source alternative to [MadKudu](https://www.madkudu.com) for lead and ICP fit scoring. MadKudu's own pricing page redirected to HG Insights and could not be read (checked 2026-10-10), so no price is stated here as fact. Third-party listings give an estimate of about $999 a month for the entry plan; treat it as unconfirmed. looot-score enriches a CSV of leads through [looot](https://looot.ai), scores each one against an ICP you edit, and returns a grade A to D with the reasons.
@@ -43,7 +45,7 @@ npm install --ignore-scripts
 npm run demo
 ```
 
-Open http://localhost:3272. The demo scores 40 generated leads on the reserved `.example` domain, needs no token, makes no network call and costs nothing. Stop it with Ctrl+C.
+Open http://localhost:3272. The demo has no sign-in and shows a "Demo, no sign-in" badge. It refuses to start if `LOOOT_TOKEN` is set or a state file exists, unless you also set an admin password. The demo scores 40 generated leads on the reserved `.example` domain, needs no token, makes no network call and costs nothing. Stop it with Ctrl+C.
 
 Prefer the terminal? `npm run score -- --demo` prints the grade counts and writes the reports to `./out`.
 
@@ -59,6 +61,11 @@ cp .env.example .env.local     # web UI only
 | --- | --- | --- | --- |
 | `LOOOT_TOKEN` | Required for real runs | Your looot key. Not needed for `--demo` or `--dry-run`. | looot Settings > Agent tokens, or `looot login` |
 | `LOOOT_API_URL` | Optional | Overrides the API base. Default `https://api.looot.ai`. | Leave unset |
+| `LOOOT_SCORE_ADMIN_PASSWORD` | Required outside the demo | Admin password, 12 characters or more. Without it the admin pages and API are closed and `/login` shows a setup page. | Choose one |
+| `LOOOT_SCORE_ADMIN_PASSWORD_HASH` | Alternative | `scrypt$salt$key` instead of the plain password. Wins if both are set. | `npm run hash-password -- 'your password'` |
+| `LOOOT_SCORE_SESSION_SECRET` | Optional | Key that signs session cookies. Default: derived from the password. | Leave unset, or a long random string |
+| `LOOOT_SCORE_COOKIE_SECURE` | Optional | Set `0` to drop the Secure flag in production, only for plain-http testing. | Leave unset |
+| `LOOOT_SCORE_CAP_USD` | Optional | Spend cap per web run, in dollars. Default 5. The browser cannot change it. The CLI takes `--max-spend` instead. | Your choice |
 | `LOOOT_SCORE_ICP` | Optional | Path to the ICP file the web UI reads and writes. Default `config/icp.json`. The CLI takes `--icp` instead. | Copy `config/icp.json` |
 | `LOOOT_SCORE_DIR` | Optional | Folder for the saved enrichment (`state.json`). Default `.looot-score` in the working directory. | Any writable folder |
 | `LOOOT_SCORE_DEMO` | Optional | `1` runs the web UI on sample data. `npm run demo` sets it. | Leave unset for real data |
@@ -96,11 +103,59 @@ The web UI on a live key: put `LOOOT_TOKEN` in `.env.local` and run `npm run dev
 ## Spending
 
 - The quote is printed first. A real run is refused (exit 2) when the quote is above `--max-spend`. Pass `--partial` to run until the cap instead.
-- `--max-spend` is in dollars. The default is 5. The web UI has a cap field that works the same way.
+- `--max-spend` is in dollars. The default is 5. In the web UI the cap is `LOOOT_SCORE_CAP_USD` on the server, shown on the page and not editable there. A `capUsd` in a request is ignored. A session can start 6 runs per 10 minutes.
 - The cap counts list price for calls in flight and the real charge once a call ends, so a run does not go over it.
 - At list price 100 leads cost about $0.83 to $1.67 and 1,000 leads $8 to $17, depending on how many leads share a company.
 - A failed call is not charged. A call still running when waiting stops is `pending`. Run the same command again inside the freshness window (`freshnessWindow` in the ICP file, `month` in the default) and finished calls replay at no charge.
 - Editing the ICP and re-scoring stored leads in the web UI makes no looot call.
+
+## Securing a deployment
+
+Versions 0.1.2 and older had no admin authentication. From 0.1.3 every route is either public on purpose or admin, and the admin routes are closed unless you set a password.
+
+### What is public and what is admin
+
+Pages and routes were listed from `src/app` and classified. A test reads the folder and fails if a route is missing from `src/lib/auth/routes.ts` or if an admin route does not call the gate.
+
+| Kind | Count | Routes |
+|---|---|---|
+| Public | 4 | `/login`, `/api/auth/login`, `/api/auth/logout`, `/api/health` |
+| Admin pages | 2 | `/` (upload, quote, run, scores), `/icp` |
+| Admin API | 3 | `/api/run` (paid), `/api/quote`, `/api/icp` (read and rewrite the ICP file) |
+
+Any path not listed is treated as admin.
+
+### How it works
+
+- Set `LOOOT_SCORE_ADMIN_PASSWORD` (12 characters or more) or `LOOOT_SCORE_ADMIN_PASSWORD_HASH` (from `npm run hash-password -- 'your password'`). Without one, admin routes answer 503, admin pages go to `/login`, and `/login` says what to set.
+- `src/proxy.ts` checks every request. Each admin page, the root layout and each admin route handler checks again with the same function, so a path the matcher misses is still closed.
+- Sign-in compares the password in constant time. A session is a signed token in an httpOnly, SameSite=Lax cookie, Secure in production, valid for 8 hours. 5 wrong passwords from one address lock that address for 15 minutes. 40 wrong passwords from anywhere lock sign-in for everyone for 15 minutes.
+- Every state-changing admin request needs a same-origin `Origin` header and the per-session token in `x-score-csrf`. The layout puts the token in a meta tag and the app's own calls send it.
+- A run (`/api/run`) needs the session and the CSRF token. The body carries only the CSV. The cap is `LOOOT_SCORE_CAP_USD` on the server (default 5), the run is refused when the quote is above it, and a session can start 6 runs per 10 minutes.
+- Writing the ICP (`PUT /api/icp`) needs the session and the CSRF token.
+- Admin responses carry `Cache-Control: no-store`. All responses carry a Content-Security-Policy (`frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The CSP allows inline scripts because Next.js needs them.
+- The demo (`npm run demo`) has no sign-in and shows a "Demo, no sign-in" badge. It refuses to start next to a `LOOOT_TOKEN` or a data file unless an admin password is set.
+
+### Set it up
+
+```bash
+export LOOOT_SCORE_ADMIN_PASSWORD='a password of 12 or more characters'
+# or keep it out of the environment as plain text:
+npm run hash-password -- 'a password of 12 or more characters'   # prints LOOOT_SCORE_ADMIN_PASSWORD_HASH=...
+npm run build && npm start
+```
+
+A shared password is the floor. For anything people other than you can reach, put the app behind a VPN, a private network or an identity-aware proxy (Cloudflare Access, Tailscale, Google IAP, oauth2-proxy), and leave only the public routes in the table above reachable from the internet. Keep the app's password on as well. The rate limits are in memory, so behind several instances also limit at the proxy.
+
+### What changes when you upgrade
+
+- The web app asks for the password. Set `LOOOT_SCORE_ADMIN_PASSWORD` before you start 0.1.3, or the admin pages stay closed.
+- The spend cap box on the page is gone. Set `LOOOT_SCORE_CAP_USD` on the server. A `capUsd` in a request to `/api/run` is ignored.
+- `PUT /api/icp` needs the session and the CSRF token, like every other state-changing admin request.
+
+### Not covered
+
+One admin, no per-user accounts or roles. The CLI has no sign-in: it runs as you on your machine and reads the same files.
 
 ## Deploy
 
@@ -108,12 +163,12 @@ I have not deployed this to Vercel. The steps below follow the code.
 
 1. Push a copy of the repo to your own GitHub account.
 2. In Vercel choose Add New > Project, import the repo. Next.js is detected, there is no `vercel.json`.
-3. Add the environment variable `LOOOT_TOKEN`. Add `LOOOT_SCORE_DIR` and `LOOOT_SCORE_ICP` too (see below).
+3. Add the environment variables `LOOOT_TOKEN` and `LOOOT_SCORE_ADMIN_PASSWORD` (or `LOOOT_SCORE_ADMIN_PASSWORD_HASH`). Add `LOOOT_SCORE_DIR` and `LOOOT_SCORE_ICP` too (see below).
 4. Deploy.
 
 Two things to know first.
 
-- The app has no sign-in. Anyone who can open the URL can upload leads and start a run that spends your balance, up to the cap they type in. Turn on Vercel Deployment Protection, or keep the app on your own machine.
+- Without `LOOOT_SCORE_ADMIN_PASSWORD` the app serves no admin page. With it, every page and API route needs the sign-in. Vercel Deployment Protection in front is still a good second layer. See [Securing a deployment](#securing-a-deployment).
 - Live mode writes files. The enrichment goes to `.looot-score/state.json` after the calls are paid, and the ICP editor writes `config/icp.json`. A serverless function may not be able to write either. Point `LOOOT_SCORE_DIR` and `LOOOT_SCORE_ICP` at writable paths. On Vercel that is `/tmp`, which does not persist between invocations. For history across runs use the CLI, or a host with a persistent disk.
 
 There is no scheduled workflow in this repo.

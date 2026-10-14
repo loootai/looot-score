@@ -67,7 +67,7 @@ export interface ParsedLeads {
   columns: Partial<Record<keyof typeof ALIASES, string>>;
 }
 
-/** Reads leads from CSV text. A row needs a valid email, or a name and a company domain. Duplicates are dropped. */
+/** Reads leads from CSV text. A row needs a valid email, or a name and a company domain, or a company domain alone (a company row, no person call). Duplicates are dropped. */
 export function parseLeads(text: string): ParsedLeads {
   const rows = parseCsv(text);
   const rejected: string[] = [];
@@ -82,8 +82,8 @@ export function parseLeads(text: string): ParsedLeads {
       columns[field as keyof typeof ALIASES] = rows[0][i].trim();
     }
   }
-  if (col.email === undefined && !(col.domain !== undefined && (col.full !== undefined || col.first !== undefined))) {
-    throw new Error(`The CSV needs an email column, or a name column and a domain column. Found: ${rows[0].join(", ")}`);
+  if (col.email === undefined && col.domain === undefined) {
+    throw new Error(`The CSV needs an email column, a domain column (with name columns for people), or a domain column alone for company rows. Found: ${rows[0].join(", ")}`);
   }
   const get = (r: string[], f: string) => (col[f] === undefined ? undefined : r[col[f]]?.trim() || undefined);
   const seen = new Set<string>();
@@ -104,8 +104,9 @@ export function parseLeads(text: string): ParsedLeads {
     const fromEmail = email ? emailDomain(email) : null;
     const domain = given ?? (fromEmail && !PERSONAL_EMAIL_DOMAINS.has(fromEmail) ? fromEmail : null);
     if (rawEmail && !email && !(first && domain)) return void rejected.push(`line ${line}: "${rawEmail}" is not an email address`);
-    if (!email && !(first && last && domain)) return void rejected.push(`line ${line}: needs an email, or a first and last name and a domain`);
-    const key = email ?? `${first} ${last}@${domain}`.toLowerCase();
+    const companyOnly = !email && !rawEmail && !first && !last && !!domain;
+    if (!email && !companyOnly && !(first && last && domain)) return void rejected.push(`line ${line}: needs an email, or a first and last name and a domain, or a domain alone`);
+    const key = email ?? (companyOnly ? `domain:${domain}` : `${first} ${last}@${domain}`.toLowerCase());
     if (seen.has(key)) return void rejected.push(`line ${line}: duplicate of an earlier row`);
     seen.add(key);
     leads.push({ id: `L${leads.length + 1}`, email, firstName: first, lastName: last, domain: domain ?? undefined, company: get(r, "company") });

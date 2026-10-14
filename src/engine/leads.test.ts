@@ -18,6 +18,11 @@ describe("normalizeDomain and emailDomain", () => {
 });
 
 describe("parseLeads", () => {
+  it("reads company rows that have only a domain and drops duplicates", () => {
+    const { leads, rejected } = parseLeads("domain,company\nhttps://www.clay.com/,Clay\nclay.com,Clay again\nnot a domain,x\n");
+    expect(leads).toEqual([{ id: "L1", email: undefined, firstName: undefined, lastName: undefined, domain: "clay.com", company: "Clay" }]);
+    expect(rejected).toHaveLength(2);
+  });
   it("reads email leads and takes the company domain from a work email", () => {
     const { leads, columns } = parseLeads("Work Email,Company\nJo.Smith@acme.example,Acme\n");
     expect(leads).toEqual([{ id: "L1", email: "jo.smith@acme.example", firstName: undefined, lastName: undefined, domain: "acme.example", company: "Acme" }]);

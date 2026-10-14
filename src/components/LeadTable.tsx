@@ -38,9 +38,9 @@ export function LeadTable({ scores }: { scores: LeadScore[] }) {
               return (
                 <Fragment key={s.lead.id}>
                   <tr className="cursor-pointer border-t border-line hover:bg-hover" onClick={() => setOpen(isOpen ? null : s.lead.id)}>
-                    <td className="px-2 py-2"><button type="button" aria-expanded={isOpen} aria-label={`Reasons for ${s.lead.email ?? nameOf(s)}`} className="grid size-6 place-items-center text-mute"><ChevronRight size={14} className={cn("transition-transform", isOpen && "rotate-90")} /></button></td>
+                    <td className="px-2 py-2"><button type="button" aria-expanded={isOpen} aria-label={`Reasons for ${s.lead.email ?? (nameOf(s) || s.lead.company || s.lead.domain)}`} className="grid size-6 place-items-center text-mute"><ChevronRight size={14} className={cn("transition-transform", isOpen && "rotate-90")} /></button></td>
                     <td className="num px-2 py-2 text-mute">{rank}</td>
-                    <td className="px-3 py-2"><div className="font-medium">{nameOf(s) || s.lead.email}</div>{nameOf(s) && s.lead.email && <div className="text-12 text-mute">{s.lead.email}</div>}</td>
+                    <td className="px-3 py-2"><div className="font-medium">{nameOf(s) || s.lead.email || s.lead.company || s.lead.domain}</div>{nameOf(s) && s.lead.email && <div className="text-12 text-mute">{s.lead.email}</div>}</td>
                     <td className="px-3 py-2 text-mute">{s.lead.domain ?? "unknown"}</td>
                     <td className="px-3 py-2"><div className="flex items-center gap-2"><span className="num w-8 text-right font-medium">{s.score}</span><Bar value={s.score} max={100} /></div></td>
                     <td className="px-3 py-2"><GradeChip grade={s.grade} />{s.disqualified && <span className="ml-2 text-11 text-high">capped</span>}{s.pending && <span className="ml-2 text-11 text-amber">pending</span>}</td>

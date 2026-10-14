@@ -81,7 +81,7 @@ function findCountry(v: unknown, depth = 0): string | undefined {
 }
 
 function companyFrom(result: unknown): NonNullable<Facts["company"]> {
-  const rawEmployees = findNumber(result, ["totalEmployees", "employees", "employee_count", "employeeCount", "headcount"]) ?? findString(result, ["employees", "totalEmployees", "employee_count", "employeesRange", "employees_range", "company_size", "size"]);
+  const rawEmployees = findNumber(result, ["totalEmployeesExact", "totalEmployees", "employees", "employee_count", "employeeCount", "headcount"]) ?? findString(result, ["employees", "totalEmployees", "employee_count", "employeesRange", "employees_range", "company_size", "size"]);
   const country = findCountry(result);
   const technologies = findStringList(result, ["technologies", "tech", "tech_stack", "techStack"]);
   const out: NonNullable<Facts["company"]> = {};
@@ -123,7 +123,7 @@ export const PROVIDERS: Record<CallKind, ProviderDef> = {
     jobId: "company.enrich",
     endpointId: "thecompaniesapi-companies-by-email",
     fallbackMicros: 1_900,
-    shapeVerified: false,
+    shapeVerified: true,
     parse: (r) => ({ company: companyFrom(r) }),
   },
   tech: {
@@ -133,7 +133,7 @@ export const PROVIDERS: Record<CallKind, ProviderDef> = {
     jobId: "company.technographics",
     endpointId: "predictleads-companies-technology-detections",
     fallbackMicros: 10_000,
-    shapeVerified: false,
+    shapeVerified: true,
     parse(result) {
       const names = new Map<string, string>();
       if (isRec(result) && Array.isArray(result.included)) {

@@ -1,4 +1,6 @@
-<p align="center"><img src="assets/hero.png" alt="looot-score" width="100%"></p>
+![looot-score: the dashboard of a live run on 2026-10-13, twelve company domains graded A to D against an ICP for looot's own buyers](docs/media/banner.png)
+
+<sub>Logos and names belong to their owners. Public data from a live run on 2026-10-13. No affiliation.</sub>
 
 # looot-score
 
@@ -8,11 +10,58 @@
 
 An open-source alternative to [MadKudu](https://www.madkudu.com) for lead and ICP fit scoring. MadKudu's own pricing page redirected to HG Insights and could not be read (checked 2026-10-10), so no price is stated here as fact. Third-party listings give an estimate of about $999 a month for the entry plan; treat it as unconfirmed. looot-score enriches a CSV of leads through [looot](https://looot.ai), scores each one against an ICP you edit, and returns a grade A to D with the reasons.
 
-![Dashboard, light](docs/screenshots/dashboard-light.png)
+<table>
+<tr>
+<td width="50%"><img src="docs/media/card-grades.png" alt="Every grade comes with its reasons: n8n scores 100 with points for headcount, industry and tech stack, each with the provider that supplied it"></td>
+<td width="50%"><img src="docs/media/card-quote.png" alt="See the cost before you spend: 12 company rows, 24 calls, $0.14 at list price"></td>
+</tr>
+<tr>
+<td><img src="docs/media/card-icp.png" alt="One file describes your buyer: the ICP editor with company size and industry points"></td>
+<td><img src="docs/media/card-budget.png" alt="Spend limits you can read: the budget panel, $0.14 used this month of $50"></td>
+</tr>
+<tr>
+<td colspan="2"><img src="docs/media/card-cli.png" alt="The same engine as a CLI: the real output of the live run, quote, grades and the files written"></td>
+</tr>
+</table>
+
+The banner, the cards and the walkthrough are the real app on the data of a live paid run on 2026-10-13 (see [Live run](#live-run-looot-scoring-its-own-buyers)). They say "Live run · 2026-10-13". Nothing on them is demo data.
+
+![A 24-second walkthrough: the CSV and its quote, the graded companies with their reasons, the ICP editor, and the costs page](docs/media/demo.gif)
+
+The same walkthrough as MP4: [docs/media/demo.mp4](docs/media/demo.mp4).
+
+## Live run: looot scoring its own buyers
+
+`examples/looot-buyers-icp.json` describes who buys looot: GTM teams and AI-agent builders at B2B software and data companies. `examples/looot-buyers.csv` is 12 company rows with a domain only. Eight are likely buyers (Clay, Apify, HubSpot, Attio, lemlist, n8n, Linear, Notion). Four should not fit (Panera Bread, Greggs, Duke Energy, Mayo Clinic). The ICP gives 30 points to company size, 40 to industry and 30 to tech stack, and none to title or seniority, because there is no person on a company row.
+
+One live run on 2026-10-13 (UTC), in two steps. Clay first as a 1-row check of the parsers, then the other 11.
+
+| | |
+|---|---|
+| Calls | 24 (12 company, 12 tech stack), all completed, none failed or pending |
+| Charged | $0.1428 (12 x $0.0019 + 12 x $0.0100), the same as the quote |
+| Grades | A 4, B 0, C 2, D 6 |
+| Spend caps | $0.05 for the Clay check, $0.20 for the second run |
+
+Run it yourself:
+
+```bash
+npm run score -- examples/looot-buyers.csv --icp examples/looot-buyers-icp.json --dry-run
+LOOOT_TOKEN=... npm run score -- examples/looot-buyers.csv --icp examples/looot-buyers-icp.json --max-spend 0.2
+```
+
+What the run showed, good and bad:
+
+- The ranking is mostly sensible. n8n scored 100, and Apify, Attio and Linear scored 85. HubSpot (7,220 employees) lands at D because it is far above the size range. The four non-buyers all graded C or D, and Duke Energy and Mayo Clinic score 0.
+- The tech stack call is the useful one. It found Salesforce, Snowflake, Stripe, Slack and HubSpot on the companies that really use them.
+- The industry field of the company provider (thecompaniesapi) is the weak spot. It labelled HubSpot "renewable-energy-power-generation", Clay "maritime", Notion "public-policy" and lemlist "b2b-sales-prospecting". Those cost points they should not have lost. The grades for HubSpot, Clay, Notion and lemlist are therefore too low. Check a grade's reasons before you trust it.
+- Some headcounts are also wrong or only a range. Linear and Clay came back as "1-10", read as 6 employees. Panera Bread came back as 10.
+- Fixed while testing: the provider sends the range ("1-10") next to an exact number (7,220 for HubSpot), and the parser read the range. It now reads the exact number first. Applying the fix to the stored answers cost nothing, because a stored result is replayed.
+- The screens show the saved run after that re-score, so the lead table says $0.00 spent: the re-score made no call. The charge is in the budget panel ("This month" $0.14) and in the CLI output above.
 
 ## What it does
 
-Upload a CSV with an email column, or name columns and a domain column. For each lead it fetches the person (title, seniority) and the company (industry, headcount, country, tech stack) from named providers, then scores six criteria from the ICP and grades the lead.
+Upload a CSV with an email column, or name columns and a domain column, or a domain column alone for company rows (no person call, so no title or seniority). For each lead it fetches the person (title, seniority) and the company (industry, headcount, country, tech stack) from named providers, then scores six criteria from the ICP and grades the lead.
 
 - Every grade lists the criteria behind it, the points each earned, the fact found and the provider that supplied it.
 - A fact no provider returned earns nothing and is marked unknown. Nothing is guessed.
@@ -235,15 +284,15 @@ Messages are quoted from the code. The CLI prints them as shown. Messages that b
 | A fact marked unknown, or a call that ends as a parse error | The response did not match what the parser expects, or no provider returned the fact. | See "How to file an issue". |
 | `Live price unreadable for <endpoint>. Those calls will be skipped.` | The public catalog has no readable call price for that endpoint. | Use `--offline` for the dated prices, or empty the tech lists in the ICP to drop the tech call. |
 | `Refused: the quote is above the cap. Raise --max-spend, score fewer leads, or pass --partial to run until the cap.` | The quote is above `--max-spend`. Exit code 2. | Do what it says. |
-| `The CSV needs an email column, or a name column and a domain column. Found: ...` | The header row has none of the expected columns. | Rename the columns, see the leads file format above. |
-| `Skipped N rows: line 3: needs an email, or a first and last name and a domain` | Rows with no usable identity are left out. | Fix those rows. The rest still runs. |
+| `The CSV needs an email column, a domain column (with name columns for people), or a domain column alone for company rows. Found: ...` | The header row has none of the expected columns. | Rename the columns, see the leads file format above. |
+| `Skipped N rows: line 3: needs an email, or a first and last name and a domain, or a domain alone` | Rows with no usable identity are left out. | Fix those rows. The rest still runs. |
 | `Unknown option --x. Run with --help.` | A flag typo. The CLI stops so a typo never runs with defaults. | Fix the flag. |
 
 How to file an issue. Open one at https://github.com/loootai/looot-score/issues with the run id (printed in the report and shown in the web UI), the command you used, and the raw response body with secrets removed.
 
 ## Status
 
-No paid looot run was made. Request fields follow each endpoint's documented parameters. Response parsers are built from provider docs and fixtures and read defensively, but no real response body has been checked against them. `shapeVerified` is `false` for every call in `src/engine/providers.ts`. Run `--dry-run` and a 5-lead run first, and expect to adjust a parser.
+One live paid run was made on 2026-10-13: 24 calls, $0.1428, company rows only (see [Live run](#live-run-looot-scoring-its-own-buyers)). The company and tech stack parsers read real response bodies and one bug came out of it (fixed). The two person calls (`people.enrich.by-email` and `people.enrich`) have not been run against a real response, so `shapeVerified` stays `false` for them. Run `--dry-run` and a 5-lead run first.
 
 If a parser fails on a real response, open an issue with the raw body (see Troubleshooting).
 

@@ -1,0 +1,15 @@
+{
+  "name": "looot buyers: GTM teams and AI-agent builders at B2B software and data companies",
+  "freshnessWindow": "month",
+  "concurrency": 3,
+  "grades": { "A": 75, "B": 55, "C": 35 },
+  "components": {
+    "employees": { "points": 30, "ideal": [20, 1500], "acceptable": [5, 10000] },
+    "industry": { "points": 40, "include": ["software", "saas", "internet", "information technology", "data", "automation"], "exclude": [] },
+    "geography": { "points": 0, "include": [] },
+    "title": { "points": 0, "include": [], "exclude": [] },
+    "seniority": { "points": 0, "levels": {} },
+    "tech": { "points": 30, "include": ["HubSpot", "Salesforce", "Segment", "Stripe", "Snowflake", "Slack"], "exclude": [], "minMatches": 2 }
+  },
+  "disqualify": { "industries": ["government", "utilities"], "titles": [], "personalEmailDomains": true }
+}

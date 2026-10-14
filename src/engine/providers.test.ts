@@ -55,3 +55,11 @@ describe("parsers", () => {
     expect(inputFor("tech", { domain: "b.example" })).toMatchObject({ company_id_or_domain: "b.example" });
   });
 });
+
+describe("company headcount", () => {
+  it("prefers the exact headcount over the range string (thecompaniesapi sends both)", () => {
+    const body = { company: { about: { industry: "software-development", totalEmployees: "1-10", totalEmployeesExact: 7220 } } };
+    expect(PROVIDERS.company.parse(body).company?.employees).toBe(7220);
+    expect(PROVIDERS.company.parse({ company: { about: { totalEmployees: "51-200" } } }).company?.employees).toBe(126);
+  });
+});

@@ -30,7 +30,7 @@ export function toMarkdown(run: EnrichRun, scores: LeadScore[]): string {
   if (run.aborted) out.push("", run.aborted);
   out.push("", `Grades: A ${d.A}, B ${d.B}, C ${d.C}, D ${d.D}.`, "");
   out.push("| # | Lead | Score | Grade | Known | Cost | Why |", "| --- | --- | --- | --- | --- | --- | --- |");
-  scores.forEach((s, i) => out.push(`| ${i + 1} | ${s.lead.email ?? `${s.lead.firstName} ${s.lead.lastName} at ${s.lead.domain}`} | ${s.score} | ${s.grade} | ${s.coverage.known}/${s.coverage.active} | ${usdPrecise(s.costMicros)} | ${reasonText(s).replace(/\|/g, "/")} |`));
+  scores.forEach((s, i) => out.push(`| ${i + 1} | ${s.lead.email ?? (s.lead.firstName && s.lead.lastName ? `${s.lead.firstName} ${s.lead.lastName} at ${s.lead.domain}` : (s.lead.company ?? s.lead.domain))} | ${s.score} | ${s.grade} | ${s.coverage.known}/${s.coverage.active} | ${usdPrecise(s.costMicros)} | ${reasonText(s).replace(/\|/g, "/")} |`));
   return out.join("\n") + "\n";
 }
 

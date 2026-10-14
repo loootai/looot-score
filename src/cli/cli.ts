@@ -19,7 +19,7 @@ Usage
   npm run score -- <leads.csv> [options]
   npm run score -- --demo
 
-The CSV needs an email column, or name columns and a domain column.
+The CSV needs an email column, or name columns and a domain column, or a domain column alone (company rows).
 
 Options
   --icp <file>            ICP config (default ${DEFAULT_ICP_PATH})
